@@ -7,6 +7,7 @@
 [![Flask API](https://img.shields.io/badge/Backend-Flask%20API-green.svg)](https://flask.palletsprojects.com/)
 [![Streamlit UI](https://img.shields.io/badge/Frontend-Streamlit-red.svg)](https://streamlit.io/)
 [![Docker](https://img.shields.io/badge/Deployment-Docker%20Containers-blue.svg)](https://www.docker.com/)
+[![GitHub Codespaces](https://img.shields.io/badge/Codespaces-Ready-black.svg?logo=github)](https://github.com/codespaces)
 
 ---
 
@@ -21,14 +22,89 @@ This repository provides an **end-to-end production ML system**: from explorator
 
 ---
 
-## 🏗️ System Architecture
+## 💻 Validation on GitHub Codespaces (Step-by-Step)
 
-The solution uses a **decoupled client-server architecture**:
+You can validate the entire deployment inside **GitHub Codespaces** in minutes without installing Docker locally or setting up third-party cloud hosting:
+
+### Step 1: Create a Codespace
+1. Navigate to the repository: [https://github.com/shivam777ie/SuperKart-Forecasting-Project](https://github.com/shivam777ie/SuperKart-Forecasting-Project)
+2. Click the green **Code** button, select the **Codespaces** tab, and click **Create codespace on main**.
+3. GitHub will open a full VS Code browser workspace.
+
+### Step 2: Launch Backend and Frontend Containers
+In the Codespace terminal, run:
+```bash
+docker compose up -d --build
+```
+*This automatically builds both container images, sets up the bridge network `superkart_network`, runs the Flask API on port **7860**, and runs the Streamlit UI on port **8501**.*
+
+To verify both containers are running:
+```bash
+docker ps
+```
+
+### Step 3: Configure Ports (Set Port 7860 to Public)
+1. In the bottom panel of Codespaces, switch to the **Ports** tab.
+2. You will see Port **7860 (Flask Backend)** and Port **8501 (Streamlit Frontend)** listed.
+3. Right-click on Port **7860** ➔ **Port Visibility** ➔ **Public** *(required for external API calls from notebooks or Colab)*.
+4. Copy the **Forwarded Address** for Port 7860 (e.g. `https://<codespace-name>-7860.app.github.dev`).
+
+### Step 4: Validate Online & Batch Inference in Codespaces
+
+#### A. Test Health Check:
+```bash
+curl http://localhost:7860/health
+```
+
+#### B. Test Online Single Prediction:
+```bash
+curl -X POST http://localhost:7860/v1/predict \
+     -H "Content-Type: application/json" \
+     -d '{
+       "Product_Weight": 12.66,
+       "Product_Sugar_Content": "Low Sugar",
+       "Product_Allocated_Area": 0.027,
+       "Product_MRP": 117.08,
+       "Store_Size": "Medium",
+       "Store_Location_City_Type": "Tier 2",
+       "Store_Type": "Supermarket Type2",
+       "Product_Id_char": "FD",
+       "Store_Age_Years": 16,
+       "Product_Type_Category": "Non Perishables"
+     }'
+```
+*Expected Output:*
+```json
+{
+  "currency": "USD",
+  "formatted_sales": "$2,934.01",
+  "prediction": 2934.01,
+  "status": "success"
+}
+```
+
+#### C. Test Batch Inference (CSV Upload):
+```bash
+curl -X POST http://localhost:7860/v1/predictbatch \
+     -F "file=@Batch_Data_SuperKart.csv"
+```
+*Expected Output: JSON mapping row index to predicted sales:*
+```json
+{"0":4103.09,"1":2960.41,"2":4007.96,"3":2046.41,"4":4066.57,"5":5071.21,"6":2396.57,"7":2374.81,"8":4381.44,"9":2395.86}
+```
+
+### Step 5: Open Streamlit Frontend
+In the **Ports** tab, hover over Port **8501** and click the **Open in Browser** (globe) icon.  
+The interactive **SuperKart Sales Forecasting Hub** dashboard will open in a new tab!
+
+---
+
+## 🏗️ System Architecture
 
 ```mermaid
 graph LR
-    User[Store Manager / Business Analyst] --> Streamlit[Streamlit Frontend Dashboard<br>Port 7860/8501]
-    Streamlit -->|HTTP POST JSON / CSV| Flask[Flask REST API Backend<br>Port 7860/5000]
+    User[Store Manager / Business Analyst] --> Streamlit[Streamlit Frontend Dashboard<br>Port 8501]
+    Streamlit -->|HTTP POST JSON / CSV| Flask[Flask REST API Backend<br>Port 7860]
     Flask -->|Inference Query| Pipeline[Serialized ML Pipeline<br>ColumnTransformer + Tuned Random Forest]
     Pipeline -->|Sales Predictions| Flask
     Flask -->|JSON Response| Streamlit
@@ -78,6 +154,8 @@ All models were evaluated on an untouched 20% test partition using **RMSE** as t
 
 ```text
 SuperKart-Forecasting-Project/
+├── .devcontainer/
+│   └── devcontainer.json           # GitHub Codespaces configuration
 ├── backend_files/
 │   ├── app.py                      # Flask REST API implementation
 │   ├── requirements.txt            # Backend dependencies
@@ -88,6 +166,7 @@ SuperKart-Forecasting-Project/
 │   ├── requirements.txt            # Frontend dependencies
 │   ├── Dockerfile                  # Frontend container configuration (port 7860)
 │   └── superkart_model.joblib      # Local model artifact for decoupled resilience
+├── docker-compose.yml              # Multi-container orchestration for Codespaces
 ├── Batch_Data_SuperKart.csv        # 10-record sample dataset for batch inference verification
 ├── SuperKart.csv                   # Historical training dataset (8,763 rows)
 ├── superkart_model.joblib          # Standalone root pipeline artifact
@@ -98,107 +177,6 @@ SuperKart-Forecasting-Project/
 ├── .gitignore                      # Git ignore file
 └── README.md                       # Comprehensive project documentation
 ```
-
----
-
-## 🚀 Quickstart: Running Locally
-
-### 1. Run the Flask Backend
-```bash
-cd backend_files
-pip install -r requirements.txt
-python app.py
-```
-*The API will start at `http://127.0.0.1:7860` (or `PORT` environment variable).*
-
-### 2. Run the Streamlit Frontend
-```bash
-cd frontend_files
-pip install -r requirements.txt
-streamlit run streamlit_app.py
-```
-*The web dashboard will open at `http://localhost:8501`.*
-
----
-
-## 🐳 Docker Deployment
-
-### Run Backend Container
-```bash
-cd backend_files
-docker build -t superkart-backend .
-docker run -p 7860:7860 superkart-backend
-```
-
-### Run Frontend Container
-```bash
-cd frontend_files
-docker build -t superkart-frontend .
-docker run -p 8501:7860 -e BACKEND_URL=http://host.docker.internal:7860 superkart-frontend
-```
-
----
-
-## 📡 API Documentation & Sample Payloads
-
-### **1. Health Check**
-- **Endpoint:** `GET /health` or `GET /`
-- **Response:**
-  ```json
-  {
-    "status": "healthy",
-    "service": "SuperKart Sales Forecasting API",
-    "version": "1.0.0",
-    "model_loaded": true
-  }
-  ```
-
-### **2. Single Online Prediction**
-- **Endpoint:** `POST /v1/predict` (also aliased at `/predict`)
-- **Headers:** `Content-Type: application/json`
-- **Request Payload:**
-  ```json
-  {
-    "Product_Weight": 12.66,
-    "Product_Sugar_Content": "Low Sugar",
-    "Product_Allocated_Area": 0.027,
-    "Product_MRP": 117.08,
-    "Store_Size": "Medium",
-    "Store_Location_City_Type": "Tier 2",
-    "Store_Type": "Supermarket Type2",
-    "Product_Id_char": "FD",
-    "Store_Age_Years": 16,
-    "Product_Type_Category": "Non Perishables"
-  }
-  ```
-- **Response:**
-  ```json
-  {
-    "currency": "USD",
-    "formatted_sales": "$2,934.01",
-    "prediction": 2934.01,
-    "status": "success"
-  }
-  ```
-
-### **3. Batch Prediction via CSV Upload**
-- **Endpoint:** `POST /v1/predictbatch` (also aliased at `/predict_batch`)
-- **Body:** `multipart/form-data` with key `'file'` containing `Batch_Data_SuperKart.csv`
-- **Response:**
-  ```json
-  {
-    "0": 4103.09,
-    "1": 2960.41,
-    "2": 4007.96,
-    "3": 2046.41,
-    "4": 4066.57,
-    "5": 5071.21,
-    "6": 2396.57,
-    "7": 2374.81,
-    "8": 4381.44,
-    "9": 2395.86
-  }
-  ```
 
 ---
 
