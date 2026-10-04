@@ -1,0 +1,21 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Temporary and backup files
+~$*
+*.tmp
+*.bak
+* - Copy.*
+
+# Jupyter checkpoints
+.ipynb_checkpoints/
+.virtual_documents/
+
+# Environments
+.env
+.venv/
+env/
+venv/
+ENV/
